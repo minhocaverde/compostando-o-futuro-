@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jogo Compostagem & Memória com Login</title>
+    <style>
+        /* --- Seu CSS original aqui --- */
+        /* Estilos básicos para a composteira, minhocas, horta, jogo da memória e login */
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #222;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Estilo para o container do jogo */
+        #game-container {
+            max-width: 900px;
+            margin: 20px auto;
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        /* Botões */
+        button {
+            cursor: pointer;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            margin: 4px;
+            background: #06d6a0;
+            color: #000;
+            font-weight: bold;
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            color: #aaa;
+        }
+
+        /* Login Modal */
+        #login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        #login-modal > div {
+            background: #444;
+            padding: 30px;
+            border-radius: 10px;
+            width: 300px;
+            text-align: center;
+        }
+
+        #login-modal input {
+            width: 100%;
+            padding: 10px;
+            margin: 12px 0;
+            border-radius: 4px;
+            border: none;
+            font-size: 1rem;
+        }
+
+        /* Memory Game Board */
+        #memory-game-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .memory-card {
+            width: 80px;
+            height: 100px;
+            background: #444;
+            border-radius: 8px;
+            perspective: 600px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .memory-card.flipped .card-front {
+            transform: rotateY(180deg);
+        }
+        .memory-card.flipped .card-back {
+            transform: rotateY(0deg);
+        }
+
+        .card-front,
+        .card-back {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            border-radius: 8px;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+        }
+
+        .card-front {
+            background: #06d6a0;
+            color: #fff;
+            transform: rotateY(0deg);
+            transition: transform 0.4s;
+        }
+
+        .card-back {
+            background: #fff;
+            color: #333;
+            transform: rotateY(180deg);
+            transition: transform 0.4s;
+            flex-direction: column;
+            padding: 8px;
+            font-size: 0.9rem;
+        }
+
+        /* Confetti */
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            opacity: 0.9;
+            animation: confetti-fall 3s forwards;
+            pointer-events: none;
+            border-radius: 2px;
+            z-index: 1500;
+        }
+
+        @keyframes confetti-fall {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(300px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        /* Modal Victory */
+        #memory-victory-modal {
+            position: fixed;
+            top:0; left:0;
+            width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #06d6a0;
+            font-size: 1.5rem;
+            z-index: 2000;
+        }
+        #memory-victory-modal button {
+            margin-top: 20px;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="login-modal">
+    <div>
+        <h2>Login</h2>
+        <input type="text" id="username-input" placeholder="Digite seu nome" autocomplete="off" />
+        <input type="password" id="password-input" placeholder="Digite sua senha" autocomplete="off" />
+        <button id="login-btn">Entrar</button>
+        <div id="login-error" style="color:#ff6b6b; margin-top:10px; display:none;">Usuário ou senha inválidos</div>
+    </div>
+</div>
+
+<div id="game-container" class="hidden">
+
+    <h1>Bem-vindo ao Jogo de Compostagem e Memória</h1>
+
+    <div id="money-counter">$0</div>
+
+    <!-- Aqui você pode colocar o conteúdo original da composteira, minhocas, horta -->
+
+    <button id="start-memory-game-btn">Jogar Memória</button>
+
+    <div id="memory-game-board" class="mt-4"></div>
+
+</div>
+
+<div id="memory-victory-modal" class="hidden">
+    <div>Parabéns! Você terminou o jogo da memória!</div>
+    <div>Pontos: <span id="final-memory-score"></span></div>
+    <div>Jogadas: <span id="final-memory-moves"></span></div>
+    <div>Bônus: $<span id="memory-bonus"></span></div>
+    <button id="memory-collect-bonus-btn">Coletar Bônus</button>
+    <button id="memory-play-again-btn">Jogar Novamente</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Dados do usuário para login simples (exemplo)
+    const users = [
+        { username: 'maiara', password: '123' },
+        { username: 'user', password: 'senha' }
+    ];
+
+    const loginModal = document.getElementById('login-modal');
+    const usernameInput = document.getElementById('username-input');
+    const passwordInput = document.getElementById('password-input');
+    const loginBtn = document.getElementById('login-btn');
+    const loginError = document.getElementById('login-error');
+    const gameContainer = document.getElementById('game-container');
+
+    loginBtn.addEventListener('click', () => {
+        const username = usernameInput.value.trim().toLowerCase();
+        const password = passwordInput.value;
+
+        const userFound = users.find(u => u.username === username && u.password === password);
+
+        if(userFound) {
+            loginModal.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            gameState.username = username;
+            loadUserProgress(username);
+        } else {
+            loginError.style.display = 'block';
+        }
+    });
+
+    // --- Estado do jogo ---
+    const gameState = {
+        username: null,
+        money: 0,
+        compost: {
+            level: 0,
+            worms: 0,
+            liquidCollector: 0,
+            solidCollector: 0,
+            specialWorms: { productive: 0, fast: 0 }
+        },
+        garden: {
+            liquidFertilizer: 0,
+            solidFertilizer: 0,
+            plots: [
+                { planted: false, type: null, growth: 0, needsWater: false },
+                { planted: false, type: null, growth: 0, needsWater: false },
+                { planted: false, type: null, growth: 0, needsWater: false },
+                { planted: false, type: null, growth: 0, needsWater: false }
+            ]
+        },
+        day: 1,
+        dayProgress: 0,
+        dayDuration: 100,
+    };
+
+    // --- Elementos da interface ---
+
+    const moneyCounter = document.getElementById('money-counter');
+
+    // --- Atualizações de UI simples (exemplo) ---
+    function updateMoneyDisplay() {
+        moneyCounter.textContent = `$${gameState.money}`;
+    }
+
+    // --- Salvar e carregar progresso simples com localStorage ---
+    function saveUserProgress(username) {
+        localStorage.setItem('gameState-' + username, JSON.stringify(gameState));
+    }
+
+    function loadUserProgress(username) {
+        const data = localStorage.getItem('gameState-' + username);
+        if(data) {
+            const savedState = JSON.parse(data);
+            Object.assign(gameState, savedState);
+            updateMoneyDisplay();
+            // Você pode adicionar aqui a atualização dos outros elementos da interface.
+        } else {
+            updateMoneyDisplay();
+        }
+    }
+
+    // --- Código do jogo da memória ---
+
+    const startMemoryGameBtn = document.getElementById('start-memory-game-btn');
+    const memoryGameBoard = document.getElementById('memory-game-board');
+
+    const memoryVictoryModal = document.getElementById('memory-victory-modal');
+    const finalMemoryScore = document.getElementById('final-memory-score');
+    const finalMemoryMoves = document.getElementById('final-memory-moves');
+    const memoryBonus = document.getElementById('memory-bonus');
+    const memoryCollectBonusBtn = document.getElementById('memory-collect-bonus-btn');
+    const memoryPlayAgainBtn = document.getElementById('memory-play-again-btn');
+
+    const cardsData = [
+        { id: 1, icon: '🍎', text: 'Maçã', info: 'A maçã é uma fruta rica em fibras.' },
+        { id: 2, icon: '🥕', text: 'Cenoura', info: 'A cenoura ajuda na visão.' },
+        { id: 3, icon: '🌻', text: 'Girassol', info: 'Girassol é uma flor que segue o sol.' },
+        { id: 4, icon: '🐛', text: 'Minhoca', info: 'Minhocas ajudam na compostagem.' },
+        { id: 5, icon: '🌱', text: 'Planta', info: 'Plantas produzem oxigênio.' },
+        { id: 6, icon: '💧', text: 'Água', info: 'Água é essencial para a vida.' },
+        { id: 7, icon: '☀️', text: 'Sol', info: 'O sol é fonte de energia.' },
+        { id: 8, icon: '🌿', text: 'Folha', info: 'Folhas fazem fotossíntese.' }
+    ];
+
+    let memoryState = {
+        flippedCards: [],
+        canFlip: true,
+        moves: 0,
+        score: 0,
+        matchedPairs: 0,
+        totalPairs: cardsData.length,
+        gameOver: false,
+        bonus: 0
+    };
+
+    function shuffle(array) {
+        let currentIndex = array.length, randomIndex;
+
+        while(currentIndex !== 0) {
+            randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex--;
+
+            [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+        }
+
+        return array;
+    }
+
+    function initMemoryGame() {
+        memoryState = {
+            flippedCards: [],
+            canFlip: true,
+            moves: 0,
+            score: 0,
+            matchedPairs: 0,
+            totalPairs: cardsData.length,
+            gameOver: false,
+            bonus: 0
+        };
+        memoryGameBoard.innerHTML = '';
+        memoryVictoryModal.classList.add('hidden');
+
+        // Criar array com pares
+        let deck = [];
+        cardsData.forEach(card => {
+            deck.push(card);
+            deck.push(Object.assign({}, card)); // duplicado
+        });
+
+        shuffle(deck);
+
+        deck.forEach(card => {
+            const cardElement = document.createElement('div');
+            cardElement.className = 'memory-card';
+            cardElement.innerHTML = `
+                <div class="card-front">?</div>
+                <div class="card-back">
+                    <div>${card.icon}</div>
+                    <div>${card.text}</div>
+                </div>
+            `;
+            cardElement.addEventListener('click', () => flipCard(cardElement, card));
+            memoryGameBoard.appendChild(cardElement);
+        });
+    }
+
+    function flipCard(cardElement, cardData) {
+        if(!memoryState.canFlip || cardElement.classList.contains('flipped') || memoryState.flippedCards.length >= 2) {
+            return;
+        }
+
+        cardElement.classList.add('flipped');
+        memoryState.flippedCards.push({element: cardElement, data: cardData});
+
+        if(memoryState.flippedCards.length === 2) {
+            memoryState.moves++;
+
+            const [card1, card2] = memoryState.flippedCards;
+
+            if(card1.data.id === card2.data.id) {
+                setTimeout(() => {
+                    card1.element.classList.add('opacity-70');
+                    card2.element.classList.add('opacity-70');
+
+                    memoryState.score += 10;
+
+                    showMessage('Você encontrou um par!', `${card1.data.icon} ${card1.data.text}: ${card1.data.info}`);
+
+                    memoryState.matchedPairs++;
+
+                    if(memoryState.matchedPairs === memoryState.totalPairs) {
+                        endMemoryGame();
+                    }
+
+                    memoryState.flippedCards = [];
+                }, 600);
+            } else {
+                memoryState.canFlip = false;
+                setTimeout(() => {
+                    card1.element.classList.remove('flipped');
+                    card2.element.classList.remove('flipped');
+                    memoryState.flippedCards = [];
+                    memoryState.canFlip = true;
+                }, 1200);
+            }
+        }
+    }
+
+    function endMemoryGame() {
+        memoryState.gameOver = true;
+        const bonus = Math.max(10, Math.floor(memoryState.score * (1 + (20 / memoryState.moves))));
+        memoryState.bonus = bonus;
+
+        finalMemoryScore.textContent = memoryState.score;
+        finalMemoryMoves.textContent = memoryState.moves;
+        memoryBonus.textContent = bonus;
+
+        setTimeout(() => {
+            memoryVictoryModal.classList.remove('hidden');
+        }, 800);
+    }
+
+    function showMessage(title, content) {
+        alert(`${title}\n${content}`);
+    }
+
+    // Botões do jogo da memória
+    startMemoryGameBtn.addEventListener('click', initMemoryGame);
+    memoryPlayAgainBtn.addEventListener('click', () => {
+        memoryVictoryModal.classList.add('hidden');
+        initMemoryGame();
+    });
+
+    memoryCollectBonusBtn.addEventListener('click', () => {
+        gameState.money += memoryState.bonus;
+        updateMoneyDisplay();
+        alert(`Você ganhou $${memoryState.bonus} pelo seu desempenho no jogo da memória!`);
+        memoryVictoryModal.classList.add('hidden');
+        saveUserProgress(gameState.username);
+    });
+
+});
+</script>
+
+</body>
+</html>
